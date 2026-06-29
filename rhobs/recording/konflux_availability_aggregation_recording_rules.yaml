@@ -1,0 +1,110 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: rhtap-konflux-availability-aggregation
+  labels:
+    tenant: rhtap
+spec:
+  groups:
+    # Service-level availability aggregations
+    # These pre-aggregate availability percentages at different time windows
+    # to reduce query load when viewing long time ranges in dashboards
+    - name: konflux_availability_service_aggregation
+      interval: 5m  # Evaluate every 5 minutes to reduce load
+      rules:
+        # 1-hour rolling availability percentage per service/check/cluster
+        # Used for: Short-term detailed views (0-7 days)
+        # avg_over_time of konflux_up (0 or 1) gives us the availability percentage
+        - record: konflux:availability:service:1h
+          expr: |
+            avg_over_time(konflux_up[1h]) * 100
+
+        # 6-hour rolling availability percentage per service/check/cluster
+        # Used for: Medium-term views (7-30 days)
+        - record: konflux:availability:service:6h
+          expr: |
+            avg_over_time(konflux_up[6h]) * 100
+
+        # 24-hour rolling availability percentage per service/check/cluster
+        # Used for: Long-term views (30+ days)
+        - record: konflux:availability:service:24h
+          expr: |
+            avg_over_time(konflux_up[24h]) * 100
+
+        # 7-day rolling availability percentage per service/check/cluster
+        # Used for: Very long-term views (90+ days)
+        - record: konflux:availability:service:7d
+          expr: |
+            avg_over_time(konflux_up[7d]) * 100
+
+        # 30-day rolling availability percentage per service/check/cluster
+        # Used for: Historical analysis (90+ days)
+        - record: konflux:availability:service:30d
+          expr: |
+            avg_over_time(konflux_up[30d]) * 100
+
+    # Cluster-level availability aggregations
+    # These aggregate across all services within a cluster to show overall cluster health
+    - name: konflux_availability_cluster_aggregation
+      interval: 5m
+      rules:
+        # Cluster-level 1-hour availability (average across all services)
+        - record: konflux:availability:cluster:1h
+          expr: |
+            avg by(source_cluster) (
+              konflux:availability:service:1h
+            )
+
+        # Cluster-level 6-hour availability
+        - record: konflux:availability:cluster:6h
+          expr: |
+            avg by(source_cluster) (
+              konflux:availability:service:6h
+            )
+
+        # Cluster-level 24-hour availability
+        - record: konflux:availability:cluster:24h
+          expr: |
+            avg by(source_cluster) (
+              konflux:availability:service:24h
+            )
+
+        # Cluster-level 7-day availability
+        - record: konflux:availability:cluster:7d
+          expr: |
+            avg by(source_cluster) (
+              konflux:availability:service:7d
+            )
+
+        # Cluster-level 30-day availability
+        - record: konflux:availability:cluster:30d
+          expr: |
+            avg by(source_cluster) (
+              konflux:availability:service:30d
+            )
+
+    # Service-group aggregations (aggregate by service name, across all checks)
+    # Useful for showing overall service health regardless of specific check
+    - name: konflux_availability_service_group_aggregation
+      interval: 5m
+      rules:
+        # Service-level (aggregated across checks) 24-hour availability
+        - record: konflux:availability:service_group:24h
+          expr: |
+            avg by(service, source_cluster) (
+              konflux:availability:service:24h
+            )
+
+        # Service-level (aggregated across checks) 7-day availability
+        - record: konflux:availability:service_group:7d
+          expr: |
+            avg by(service, source_cluster) (
+              konflux:availability:service:7d
+            )
+
+        # Service-level (aggregated across checks) 30-day availability
+        - record: konflux:availability:service_group:30d
+          expr: |
+            avg by(service, source_cluster) (
+              konflux:availability:service:30d
+            )
